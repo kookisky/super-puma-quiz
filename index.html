@@ -2,6 +2,8 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; font-src 'self'; connect-src 'self' https://puma-quiz-board.kookisky.workers.dev; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FFF7E8">
 <title>PUMA學學霸</title>
@@ -19,7 +21,7 @@
 <link rel="canonical" href="https://puma.teanau.net/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FFF7E8'/%3E%3Ctext x='32' y='48' text-anchor='middle' font-size='44' fill='%23F0637A'%3E♥%3C/text%3E%3C/svg%3E">
 <link rel="preload" as="image" href="./img/run.webp">
-<link rel="stylesheet" href="./style.css?v=12">
+<link rel="stylesheet" href="./style.css?v=13">
 </head>
 <body>
 <div id="app" data-screen="boot">
@@ -130,9 +132,9 @@
         <a id="share-dl" class="btn" download="puma-quiz.png" href="#">下載成績圖</a>
       </div>
       <form id="name-form" class="name-form" autocomplete="off">
-        <label for="name-input">留下ID，登上排行榜</label>
+        <label for="name-input">留下ID，登上排行榜（ID會公開顯示）</label>
         <div class="name-row">
-          <input id="name-input" name="pid" type="text" inputmode="text" maxlength="12" placeholder="最多12個字" enterkeyhint="done">
+          <input id="name-input" name="pid" type="text" inputmode="text" maxlength="5" placeholder="英文或數字，最多5個字" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           <button class="btn btn-primary" type="submit" id="btn-submit">送出</button>
         </div>
         <p class="name-msg" id="name-msg" role="status"></p>
@@ -147,7 +149,7 @@
   <!-- 排行榜 -->
   <section class="screen" id="s-board" hidden>
     <header class="sub-head"><button class="icon-btn" id="btn-board-back" type="button" aria-label="返回">←</button><h2>排行榜</h2><button class="icon-btn js-sound sub-sound" type="button" aria-label="聲音開關" aria-pressed="true">♪</button></header>
-    <p class="board-note" id="board-note">先比分數；同分比解題時間，快的在前。每局題目隨機抽。</p>
+    <p class="board-note" id="board-note">趣味排行榜：成績由玩家自己送出；明顯異常的紀錄會被移除。先比分數，同分比解題時間。</p>
     <ol class="board" id="board"></ol>
     <div class="board-foot"><button id="btn-board-play" class="btn btn-primary btn-big" type="button">開始挑戰</button></div>
   </section>
@@ -166,7 +168,7 @@
       <p>每一題的正確答案都是沈伯洋在公開專訪、記者會、辯論或造勢場合說過的原話，照逐字稿收錄；每題答完會附上場合、日期與原片連結。</p>
       <p>其他三個選項是出題者寫的，<strong>不是他說的</strong>。</p>
       <p id="about-pts"></p>
-      <p>排行榜會公開顯示你輸入的ID、分數與解題時間。為了防止洗榜，系統會暫時保存經過雜湊處理的連線來源識別值，兩天後清除；不收集其他個人資料。</p>
+      <p>排行榜會公開顯示你輸入的ID（英文或數字，最多5個字）、分數與解題時間；同一個ID只顯示最好的一筆。答得又快又準時，偶爾會出現一題「陷阱題」（四句都不是他說的，不計分）。為了防止洗榜，系統會暫時保存經過雜湊處理的連線來源識別值，兩天後清除；不收集其他個人資料。</p>
       <p>本遊戲為民間自製，非競選總部出品。吉祥物「奔奔抱抱」圖像取自競選官網公開素材；場景底圖與配樂以生成式模型製作。</p>
       <p class="about-ver" id="about-ver"></p>
     </div>
@@ -175,7 +177,7 @@
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 <noscript><p style="padding:24px;font:16px sans-serif">這個遊戲需要開啟JavaScript才能玩。</p></noscript>
-<script src="./config.js?v=5"></script>
-<script src="./app.js?v=12"></script>
+<script src="./config.js?v=6"></script>
+<script src="./app.js?v=13"></script>
 </body>
 </html>

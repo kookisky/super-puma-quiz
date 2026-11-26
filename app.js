@@ -1,4 +1,4 @@
-/* PUMA學學霸：遊戲本體（純靜態，無框架）第二版 */
+/* PUMA學學霸：遊戲本體（純靜態，無框架）第三版 */
 (() => {
 'use strict';
 const CFG = Object.assign({api: '', version: 'dev', site: location.origin + location.pathname, sfx: false}, window.PUMA_CONFIG || {});
@@ -8,6 +8,8 @@ const LEVELS = [
   {key: '中', name: '中級', peril: 'pit', pts: 3, title: '大洞上', desc: '風把他們吹到大洞上面！', music: 'm03'},
   {key: '高', name: '高級', peril: 'fire', pts: 4, title: '營火上', desc: '最後一關，下面是熱呼呼的營火！', music: 'm04'},
 ];
+const FAST_MS = 1500, STREAK = 5; // 連續5題又快又對（每題不到1.5秒）就塞一題陷阱題；後端 worker/index.js 用同一組數字
+let TRAPS = [];
 const PER_LEVEL = 10, TOTAL = 30, GOAL = 60, SLOTS = 6; // 每10分一顆氣球，集滿6顆（60分）得救
 const LS = {seen: 'puma.seen.v2', board: 'puma.board.v2', name: 'puma.name', mute: 'puma.mute', best: 'puma.best.v1'};
 const store = {
@@ -18,16 +20,18 @@ const store = {
 const fmtTime = ms => { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-async function fetchTimed(url, opt = {}, ms = 15000) {
+// 逾時涵蓋到「內容讀完並解析」為止；回傳 {ok, status, data}，data 解析失敗時為 null
+async function fetchJSON(url, opt = {}, ms = 15000) {
   const ac = typeof AbortController === 'function' ? new AbortController() : null; const t = setTimeout(() => ac && ac.abort(), ms);
-  try { return await fetch(url, Object.assign({}, opt, ac ? {signal: ac.signal} : {})); } finally { clearTimeout(t); }
+  try { const r = await fetch(url, Object.assign({}, opt, ac ? {signal: ac.signal} : {})); let data = null; try { data = await r.json(); } catch (e) { if (e && e.name === 'AbortError') throw e; } return {ok: r.ok, status: r.status, data}; }
+  finally { clearTimeout(t); }
 }
 
 /* ---------- 聲音 ---------- */
 const Sound = (() => {
   let ctx = null, muted = !!store.get(LS.mute, false), unlocked = false, wantTrack = null;
   const buffers = new Map(), missing = new Set();
-  const SFX = ['s01', 's02', 's03', 's04', 's05', 's06', 's07', 's08'];
+  const SFX = ['s01', 's02', 's03', 's05', 's06', 's07'];
   const synth = { // 音效檔還沒做好時用的合成音
     s01: [[660, 0, .09], [880, .09, .09], [1320, .18, .16]], s02: [[330, 0, .14], [247, .14, .22]], s03: [[520, 0, .05]],
     s04: [[740, 0, .08], [622, .1, .08], [740, .2, .08]], s05: [[523, 0, .1], [659, .1, .1], [784, .2, .1], [1047, .3, .25]],
@@ -42,7 +46,7 @@ const Sound = (() => {
     if (!CFG.sfx || buffers.has(name) || missing.has(name) || !ctx) return;
     missing.add(name);
     fetch(`./audio/${name}.mp3`).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
-      .then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no)))
+      .then(b => new Promise((ok, no) => { const p = ctx.decodeAudioData(b, ok, no); if (p && p.catch) p.catch(() => {}); }))
       .then(buf => { buffers.set(name, buf); missing.delete(name); }).catch(() => {});
   }
   function unlock() { if (unlocked) return; unlocked = true; ensureCtx(); SFX.forEach(loadSfx); }
@@ -61,7 +65,7 @@ const Sound = (() => {
   let cur = null, curName = null, loading = null;
   function loadMusic(name) {
     return fetch(`./audio/${name}.mp3`).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
-      .then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no))).catch(() => null);
+      .then(b => new Promise((ok, no) => { const p = ctx.decodeAudioData(b, ok, no); if (p && p.catch) p.catch(() => {}); })).catch(() => null);
   }
   function stopMusic() {
     if (!cur) return; const {src, gain} = cur; cur = null; curName = null;
@@ -102,10 +106,11 @@ function syncSoundBtns() { document.querySelectorAll('.js-sound').forEach(b => b
 async function loadBank() {
   let d;
   try {
-    const r = await fetchTimed(`./data/questions.json?v=${encodeURIComponent(CFG.version)}`, {cache: 'no-cache'});
-    if (!r.ok) throw 0; d = await r.json();
+    const r = await fetchJSON(`./data/questions.json?v=${encodeURIComponent(CFG.version)}`, {cache: 'no-cache'});
+    if (!r.ok || !r.data || !Array.isArray(r.data.questions)) throw 0; d = r.data;
   } catch (e) { throw new Error('網路不穩，題庫沒載入，請按重新載入'); }
   BANK = Array.isArray(d.questions) ? d.questions : []; BANK_VER = String(d.version || '');
+  TRAPS = Array.isArray(d.traps) ? d.traps.filter(t => t && Array.isArray(t.o) && t.o.length === 4) : [];
   if (d.pts) LEVELS.forEach(lv => { if (d.pts[lv.key]) lv.pts = d.pts[lv.key]; });
   $('about-ver').textContent = `題庫版本 ${BANK_VER}，共 ${BANK.length} 題。`;
   $('about-pts').textContent = `計分：初級每題${LEVELS[0].pts}分、中級每題${LEVELS[1].pts}分、高級每題${LEVELS[2].pts}分，滿分100分。每10分得到一顆氣球，集滿6顆（60分）就救回奔奔抱抱。排行榜先比分數，同分比解題時間；每局題目隨機抽。`;
@@ -134,7 +139,7 @@ function pickQuestions() {
     const per = {}, st = {num: 0, sel: []};
     if (lv.key === '高') { tryPick(order.filter(q => !q.h), 5, per, st, 0); tryPick(order.filter(q => q.h), 5, per, st, 0); }
     for (let relax = 0; relax <= 2 && st.sel.length < PER_LEVEL; relax++) tryPick(order, PER_LEVEL - st.sel.length, per, st, relax);
-    if (fresh.length === pool.length) store.set(LS.seen, [...seen].filter(id => !pool.some(q => q.id === id))); // 這一級輪完了，重新開始記
+    if (fresh.length === pool.length && pool.some(q => seen.has(q.id))) { pool.forEach(q => seen.delete(q.id)); store.set(LS.seen, [...seen]); } // 這一級輪完了，重新開始記
     out.push(...shuffle(st.sel));
   }
   return out.map(q => {
@@ -155,9 +160,14 @@ function markSeen(id) { const s = store.arr(LS.seen, x => typeof x === 'string')
 /* ---------- 遊戲流程 ---------- */
 function startGame() {
   if (G && G.shareURL) { try { URL.revokeObjectURL(G.shareURL); } catch (e) { /* 略 */ } }
-  G = {items: pickQuestions(), i: 0, score: 0, ms: 0, correct: 0, log: [], t0: 0, answered: true, perLevel: [0, 0, 0], run: null, submitted: false, submitting: false, hiddenAt: 0};
+  G = {items: pickQuestions(), i: 0, score: 0, ms: 0, correct: 0, log: [], t0: 0, answered: true, perLevel: [0, 0, 0], run: null, submitted: false, submitting: false, hiddenAt: 0, fastRun: 0, trap: null, trapDue: -1, traps: [], trapPool: shuffle(TRAPS.slice())};
   lastSubmitted = null;
-  if (CFG.api) { const g = G; fetchTimed(CFG.api + '/start', {method: 'POST'}, 10000).then(r => r.ok ? r.json() : null).then(d => { if (d && d.rid) g.run = {rid: d.rid, t: d.t, sig: d.sig}; }).catch(() => {}); }
+  if (CFG.api) { // 開局領場次憑證；失敗重試兩次，還是不行就先告訴玩家
+    const g = G, tryStart = n => fetchJSON(CFG.api + '/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}, 8000)
+      .then(r => { if (r.ok && r.data && r.data.rid) { g.run = {rid: r.data.rid, t: r.data.t, sig: r.data.sig}; return; } throw 0; })
+      .catch(() => { if (G !== g) return; if (n < 2) setTimeout(() => tryStart(n + 1), 1500 * (n + 1)); else toast('排行榜暫時連不上，這局可以照玩，但成績可能只記在這台裝置', 3600); });
+    tryStart(0);
+  }
   levelIntro(0);
 }
 const maxPossible = () => G.score + LEVELS.reduce((a, lv, li) => a + lv.pts * Math.max(0, Math.min(PER_LEVEL, (li + 1) * PER_LEVEL - G.log.length)), 0);
@@ -190,11 +200,14 @@ function renderRescue(animate) {
   const gauge = $('gauge'); gauge.classList.toggle('safe', need <= 0);
   gauge.setAttribute('aria-label', `目前${G.score}分，救援線${GOAL}分`);
   // 氣球越多升得越高；分數為零時掛在最低處，仍完整留在場景內
-  requestAnimationFrame(() => {
-    const sc = $('scene'), h = $('hang'); const room = Math.max(0, sc.clientHeight - h.offsetHeight - 6);
-    h.style.setProperty('--drop-px', Math.round(room * (1 - Math.min(GOAL, G.score) / GOAL)) + 'px');
-  });
+  requestAnimationFrame(placeHang);
 }
+function placeHang() {
+  const sc = $('scene'), h = $('hang'); const room = Math.max(0, sc.clientHeight - h.offsetHeight - 6);
+  h.style.setProperty('--drop-px', Math.round(room * (1 - Math.min(GOAL, G.score) / GOAL)) + 'px');
+}
+let resizeT = 0;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (G && $('app').dataset.screen === 'quiz') placeHang(); }, 120); });
 function quoteHTML(it) {
   const q = it.q;
   if (q.t === '挖空') return esc(q.s).replace(/＿＿+/g, '<span class="blank">？</span>');
@@ -202,7 +215,7 @@ function quoteHTML(it) {
   return it.prefix ? esc(it.prefix) + '<span class="blank">？</span>' : '下面哪一句是他說的？';
 }
 function showQuestion() {
-  const it = G.items[G.i], q = it.q, li = Math.floor(G.i / PER_LEVEL), lv = LEVELS[li];
+  const it = G.trap || G.items[G.i], q = it.q, li = Math.floor(G.i / PER_LEVEL), lv = LEVELS[li];
   $('hud-q').textContent = `第${G.i + 1}題／${TOTAL}`; $('hud-lv').textContent = `${lv.name}・${lv.pts}分`;
   $('scene').dataset.peril = lv.peril; renderRescue(false);
   $('q-context').textContent = q.c || '';
@@ -214,7 +227,7 @@ function showQuestion() {
     b.addEventListener('click', () => answer(k)); box.appendChild(b);
   });
   $('q-reveal').hidden = true; $('next-bar').hidden = true; $('scene-hint').hidden = G.i > 1;
-  show('quiz'); markSeen(q.id);
+  show('quiz'); $('q-body').scrollTop = 0; window.scrollTo(0, 0); if (!G.trap) markSeen(q.id);
   G.answered = false; G.t0 = performance.now(); G.hiddenAt = 0; tick();
 }
 const elapsedQ = () => Math.min(Math.max(0, performance.now() - G.t0), 120000); // 單題最多計兩分鐘
@@ -234,9 +247,10 @@ function fx(text, color) {
 }
 function answer(k) {
   if (!G || G.answered || performance.now() - G.t0 < 400) return; // 新題出現0.4秒內的點擊不算作答（防連點誤答）
+  if (G.trap) return answerTrap(k);
   G.answered = true;
   const it = G.items[G.i], q = it.q, li = Math.floor(G.i / PER_LEVEL), lv = LEVELS[li];
-  const used = Math.round(elapsedQ());
+  const used = Math.max(700, Math.round(elapsedQ())); // 伺服端單題下限0.7秒；手快的玩家不該整局被擋
   G.ms += used; clearInterval(tickTimer); $('hud-time').textContent = fmtTime(G.ms);
   const right = it.options[k].right, before = G.score, ballBefore = Math.floor(before / 10);
   const box = $('q-options'); box.classList.add('answered');
@@ -247,6 +261,8 @@ function answer(k) {
     b.setAttribute('aria-label', `${'ABCD'[j]}，${o.show}，${o.right ? '這是他說的' : '這不是他說的'}`);
   });
   G.log.push({id: q.id, c: it.options[k].text, ok: right, ms: used});
+  G.fastRun = right && used < FAST_MS ? G.fastRun + 1 : 0;
+  if (G.fastRun >= STREAK) { G.fastRun = 0; G.trapDue = G.i; } // 快到不像在讀題：下一題先塞陷阱題
   const sc = $('scene'), hud = $('hud');
   if (right) {
     G.score += lv.pts; G.correct++; G.perLevel[li]++;
@@ -273,7 +289,32 @@ function answer(k) {
   $('q-reveal').hidden = false; $('next-bar').hidden = false;
   // 先讓玩家看到氣球與分數的變化，再把揭曉內容捲進畫面
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(() => { if (G && G.answered && $('app').dataset.screen === 'quiz') $('next-bar').scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'end'}); }, 850);
+  setTimeout(() => { if (G && G.answered && $('app').dataset.screen === 'quiz') revealIntoView(reduce); }, 850);
+}
+// 把揭曉區捲到「分數列」與「下一題」之間：放得下就整塊露出，放不下就讓「答對了／答錯了」那行貼在可見區頂端
+function revealIntoView(reduce) {
+  const body = $('q-body'), inner = getComputedStyle(body).overflowY !== 'visible' && body.scrollHeight > body.clientHeight + 1; // 橫拿時題目區自己捲
+  const hud = $('hud').getBoundingClientRect(), rv = $('q-reveal').getBoundingClientRect(), bar = $('next-bar').getBoundingClientRect();
+  const topLimit = (inner ? body.getBoundingClientRect().top : (getComputedStyle($('hud')).position === 'sticky' ? hud.bottom : 0)) + 8;
+  const delta = Math.round(Math.min(rv.top - topLimit, rv.bottom - bar.top + 8));
+  if (delta > 0) (inner ? body : window).scrollBy({top: delta, behavior: reduce ? 'auto' : 'smooth'});
+}
+// 陷阱題：四個選項都不是他說的，不計分、不計時；這題也秒答的話，這局不列入排行榜
+function answerTrap(k) {
+  G.answered = true; clearInterval(tickTimer);
+  const it = G.trap, used = Math.round(elapsedQ());
+  G.traps.push({id: it.q.id, ms: used, after: it.after});
+  const box = $('q-options'); box.classList.add('answered');
+  [...box.children].forEach((b, j) => { const tag = b.querySelector('.opt-tag'); tag.hidden = false; b.classList.add('is-wrong'); if (j === k) b.classList.add('is-picked');
+    tag.textContent = j === k ? '你選的・不是他說的' : '不是他說的'; b.disabled = true; b.setAttribute('aria-label', `${'ABCD'[j]}，${it.options[j].show}，這不是他說的`); });
+  Sound.sfx('s03');
+  const v = $('rv-verdict'); v.textContent = '這題是陷阱題！四句都不是他說的，不計分'; v.className = 'rv-verdict no';
+  $('rv-quote').innerHTML = '<small>為什麼會有這一題</small>你前面答得又快又準，系統想確認你真的有在讀題。慢慢看、選哪個都不影響成績。';
+  $('rv-source').textContent = '';
+  const nb = $('btn-next'); nb.textContent = '回到正式題目 →'; nb.disabled = true; setTimeout(() => { nb.disabled = false; }, 600);
+  $('q-reveal').hidden = false; $('next-bar').hidden = false;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => { if (G && G.answered && $('app').dataset.screen === 'quiz') revealIntoView(reduce); }, 400);
 }
 function srcLink(q) {
   if (!q.u || !/^https:\/\//.test(q.u)) return '';
@@ -286,6 +327,12 @@ function next() {
   if (!G || !G.answered || $('btn-next').disabled) return;
   $('btn-next').disabled = true;
   Sound.sfx('s03', .5);
+  if (G.trap) G.trap = null;
+  else if (G.trapDue === G.i && G.trapPool.length) { // 塞一題陷阱題（外觀與一般題相同）
+    const t = G.trapPool.pop(); G.trapDue = -1;
+    G.trap = {q: {id: t.id, t: t.t, s: t.s || '', c: t.c || ''}, prefix: '', after: G.i, options: shuffle(t.o.map(x => ({text: x, show: x, right: false})))};
+    return showQuestion();
+  }
   G.i++;
   if (G.i >= G.items.length) return endGame();
   if (G.i % PER_LEVEL === 0) return levelIntro(G.i / PER_LEVEL);
@@ -306,9 +353,9 @@ function endGame() {
   $('end-levels').textContent = `初級答對${G.perLevel[0]}題、中級${G.perLevel[1]}題、高級${G.perLevel[2]}題。${bestLine}`;
   const cf = $('confetti'); cf.innerHTML = '';
   if (win) { const cols = ['#F0637A', '#FFD467', '#5FB884', '#8FCDEB']; for (let k = 0; k < 26; k++) { const i = document.createElement('i'); i.style.left = Math.random() * 100 + '%'; i.style.background = cols[k % 4]; i.style.animationDuration = 2.4 + Math.random() * 2.4 + 's'; i.style.animationDelay = -Math.random() * 4 + 's'; cf.appendChild(i); } }
-  $('name-input').value = String(store.get(LS.name, '') || '').slice(0, 12); $('name-msg').textContent = ''; $('btn-submit').disabled = false; $('name-form').hidden = false;
+  { const old = String(store.get(LS.name, '') || ''); $('name-input').value = /^[A-Za-z0-9]{1,5}$/.test(old) ? old : ''; } $('name-msg').textContent = ''; $('btn-submit').disabled = false; $('name-form').hidden = false;
   $('share-box').hidden = true; $('btn-share').disabled = true;
-  show('end'); Sound.play(win ? 'm05' : 'm06'); Sound.sfx(win ? 's06' : 's07');
+  G.endAt = performance.now(); show('end'); Sound.play(win ? 'm05' : 'm06'); Sound.sfx(win ? 's06' : 's07');
   // 先在背景把分享圖做好，按分享時才能立刻呼叫系統分享（Safari 對點擊後的時效要求很短）
   const g = G;
   makeShare(g).then(blob => {
@@ -319,14 +366,18 @@ function endGame() {
 }
 
 /* ---------- 排行榜 ---------- */
-const BAD = ['幹', '屌', '屄', '肏', '雞巴', '機掰', '雞掰', '機歪', '靠北', '靠腰', '三小', '婊', '妓', '賤', '智障', '白痴', '白癡', '垃圾', '去死', '死全家', '殺', '強姦', '性侵', '支那', '納粹', '共匪', '台巴子', '塔綠班', '綠共', '藍蛆', '9.2', '五毛', '習近平', '沈伯洋', '撲馬本人', '競選總部', '官方', '管理員', 'admin', 'fuck', 'shit', 'bitch', 'dick', 'cunt', 'nigg', 'porn', 'sex', 'http', 'www', '.com', '.tw', '@'];
+// ID 只收英文字母與數字、最多5個字，另過惡意詞庫（與後端 worker/index.js 同一份規則）
+const BAD = ['fuck', 'fack', 'fvck', 'fock', 'feck', 'fuk', 'fuc', 'fck', 'fuq', 'phuk', 'shit', 'sht', 'bitch', 'biach', 'btch', 'dick', 'dik', 'cock', 'cok', 'cunt', 'kunt', 'pussy', 'pusy', 'nigg', 'niga', 'nigr', 'negro', 'fag', 'porn', 'pron', 'sex', 'seks', 'rape', 'nazi', 'hitle', 'kkk', 'slut', 'whore', 'hore', 'cum', 'jizz', 'anal', 'anus', 'dildo', 'penis', 'boob', 'tits', 'kill', 'chink', 'gook', 'jap', 'tard', 'homo', 'pedo', 'heil', 'isis',
+  'gnn', 'gnm', 'ganni', 'gani', 'kanin', 'cnm', 'caoni', 'cao', 'wocao', 'nmsl', 'tmd', 'tnnd', 'shabi', 'sabi', 'jiba', 'jibai', 'kaobe', 'kaopei', 'kaoyo', 'biao', 'laji', 'lanjia', 'lanpa', 'gay',
+  'admin', 'staff', 'offic', 'kmt', 'dpp', 'tpp', 'ccp', 'cpc', 'prc', 'vote', 'shen', 'jiang', 'chian', 'wanan', 'xjp', 'mao'];
+const BAD_EXACT = ['ass', 'arse', 'sb', 'jb', 'gy', 'gn', 'gg', 'gm', 'mod', 'sys', 'root', 'null', 'nan', 'bot', 'hoe', 'die', 'xi', 'ss', 'sm', 'av', 'bj', 'ntr', '87', '92', '64', '88', '1488', '8964', '14', '18', 'wtf', 'stfu', 'fu', 'fk', 'fq'];
+const LEET = {'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g'};
 function cleanName(raw) {
-  let s = String(raw || '');
-  try { s = s.normalize('NFKC').replace(/[\p{Cc}\p{Cf}\p{Me}ᅟᅠㅤﾠ⠀᠎<>]/gu, '').replace(/\p{Mn}{2,}/gu, ''); } catch (e) { s = s.replace(/[\u0000-\u001f​-‏‪-‮﻿<>]/g, ''); }
-  s = [...s.replace(/\s+/g, ' ').trim()].slice(0, 12).join('');
-  const low = s.toLowerCase().replace(/[\s.\-_*·・,，。!！?？'"]/g, '');
-  if (!s || !low) return {err: '請輸入ID'};
-  if (BAD.some(w => low.includes(w.replace(/\./g, '')))) return {err: '這個ID不能用，換一個吧'};
+  let s = String(raw || ''); try { s = s.normalize('NFKC'); } catch (e) { /* 舊瀏覽器 */ } s = s.trim();
+  if (!s) return {err: '請輸入ID'};
+  if (!/^[A-Za-z0-9]{1,5}$/.test(s)) return {err: 'ID只能用英文字母和數字，最多5個字'};
+  const low = s.toLowerCase(), un = low.replace(/[0134578 9]/g, c => LEET[c] || c), dd = un.replace(/(.)\1+/g, '$1');
+  if ([low, un, dd].some(v => BAD_EXACT.includes(v) || BAD.some(w => v.includes(w)))) return {err: '這個ID不能用，換一個吧'};
   return {name: s};
 }
 const sortBoard = a => a.sort((x, y) => y.score - x.score || x.ms - y.ms || x.at - y.at);
@@ -337,23 +388,23 @@ function saveLocal(g, name) {
   return rec;
 }
 const SUBMIT_MSG = {too_fast: '這次成績沒有登上線上排行榜（作答時間太短），已記在這台裝置', slow_down: '送出太頻繁了，這次成績先記在這台裝置', bad_name: '這個ID不能用，換一個吧',
-  version: '題庫剛更新過，這局成績只能記在這台裝置；重新整理頁面後再玩一局就能上榜', bad_run: '這局沒有連上排行榜，成績已記在這台裝置', run_expired: '這局放太久了，成績已記在這台裝置'};
+  version: '題庫剛更新過，這局成績只能記在這台裝置；重新整理頁面後再玩一局就能上榜', bad_run: '這局沒有連上排行榜，成績已記在這台裝置', closed: '排行榜暫時關閉，成績已記在這台裝置', forbidden: '這局成績沒辦法登上線上排行榜，已記在這台裝置', run_expired: '這局放太久了，成績已記在這台裝置'};
 async function submitScore(g, name) {
   const rec = saveLocal(g, name); lastSubmitted = rec;
   if (!CFG.api) return {mode: 'local'};
   if (!g.run) { const e = new Error('norun'); e.code = 'bad_run'; throw e; }
   let r, d = null;
-  try { r = await fetchTimed(CFG.api + '/submit', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, v: BANK_VER, run: g.run, picks: g.log.map(l => ({id: l.id, c: l.c, ms: l.ms}))})}); d = await r.json(); }
+  try { r = await fetchJSON(CFG.api + '/submit', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, v: BANK_VER, run: g.run, picks: g.log.map(l => ({id: l.id, c: l.c, ms: l.ms})), traps: g.traps})}); d = r.data; }
   catch (e) { const er = new Error('net'); er.code = 'net'; throw er; }
   if (!r.ok || !d || !d.ok) { const e = new Error('rejected'); e.code = (d && d.error) || 'net'; throw e; }
   lastSubmitted = {name: d.name, score: d.score, ms: d.ms};
-  return {mode: 'online', rank: d.rank};
+  return {mode: d.unranked ? 'unranked' : d.pending ? 'pending' : 'online', rank: d.rank};
 }
 async function loadBoard() {
   if (!CFG.api) return {rows: readLocalBoard(), mode: 'local'};
   try {
-    const r = await fetchTimed(CFG.api + '/top', {cache: 'no-store'}, 12000); if (!r.ok) throw 0;
-    const d = await r.json(); return {rows: Array.isArray(d.rows) ? d.rows : [], mode: 'online', total: d.total};
+    const r = await fetchJSON(CFG.api + '/top', {cache: 'no-store'}, 12000); if (!r.ok || !r.data) throw 0;
+    const d = r.data; return {rows: Array.isArray(d.rows) ? d.rows.filter(x => x && typeof x.name === 'string') : [], mode: 'online', total: Number(d.total) || 0};
   } catch (e) { return {rows: readLocalBoard(), mode: 'offline'}; }
 }
 async function openBoard(from) {
@@ -445,16 +496,17 @@ function share() {
 /* ---------- 綁定 ---------- */
 function bind() {
   const tap = (id, fn) => $(id).addEventListener('click', e => { Sound.unlock(); fn(e); });
+  const endTap = (id, fn) => tap(id, e => { if (G && performance.now() - (G.endAt || 0) < 500) return; fn(e); }); // 最後一題連點「看救援結果」時，第二下不算
   tap('btn-start', () => { Sound.sfx('s03'); startGame(); });
   tap('btn-level-go', () => { Sound.sfx('s03'); showQuestion(); });
   tap('btn-next', next);
-  tap('btn-again', () => { Sound.sfx('s03'); startGame(); });
-  tap('btn-share', share);
-  tap('btn-review', () => openReview('all'));
+  endTap('btn-again', () => { Sound.sfx('s03'); startGame(); });
+  endTap('btn-share', share);
+  endTap('btn-review', () => openReview('all'));
   tap('btn-board-play', () => { Sound.sfx('s03'); startGame(); });
   tap('btn-review-back', () => show('end'));
   tap('btn-board', () => openBoard('title'));
-  tap('btn-board2', () => openBoard('end'));
+  endTap('btn-board2', () => openBoard('end'));
   tap('btn-board-back', () => { if (openBoard.from === 'end' && G && G.log.length === TOTAL) { show('end'); Sound.play(G.score >= GOAL ? 'm05' : 'm06'); } else { show('title'); Sound.play('m01'); } });
   tap('btn-about', () => show('about'));
   tap('btn-about-back', () => show('title'));
@@ -468,16 +520,18 @@ function bind() {
     g.submitting = true; $('btn-submit').disabled = true; msg.textContent = '送出中…'; store.set(LS.name, r.name);
     try {
       const res = await submitScore(g, r.name); g.submitted = true;
-      if (G === g) { msg.textContent = res.mode === 'online' ? (res.rank ? `上榜了！目前第${res.rank}名` : '上榜了！（目前在300名以外）') : '已記錄在這台裝置的排行榜'; $('name-input').blur(); }
+      if (G === g) { msg.textContent = res.mode === 'online' ? (res.rank ? `上榜了！目前第${res.rank}名` : '上榜了！（目前在300名以外）') : res.mode === 'unranked' ? '這一局作答快得不尋常，沒有列入排行榜；成績已記在這台裝置' : res.mode === 'pending' ? '成績已送出，稍後會出現在排行榜' : '已記錄在這台裝置的排行榜'; $('name-input').blur(); }
     } catch (err) {
       const code = err && err.code;
-      if (G === g) msg.textContent = SUBMIT_MSG[code] || '排行榜暫時連不上，成績已先記在這台裝置；可以再按一次送出';
-      if (code && code !== 'net' && code !== 'bad_name' && code !== 'slow_down' && code !== 'server') g.submitted = true; // 重試也不會成功的情況，不再重送
+      const retry = !code || code === 'net' || code === 'bad_name' || code === 'slow_down' || code === 'server';
+      if (G === g) msg.textContent = SUBMIT_MSG[code] || (retry ? '排行榜暫時連不上，成績已先記在這台裝置；可以再按一次送出' : '這局成績沒辦法登上線上排行榜，已記在這台裝置');
+      if (!retry) g.submitted = true; // 重試也不會成功的情況，不再重送
     } finally { g.submitting = false; if (G === g) $('btn-submit').disabled = g.submitted; }
   });
   document.addEventListener('keydown', e => {
     if ($('app').dataset.screen !== 'quiz' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || !G) return;
-    const k = 'abcd'.indexOf(e.key.toLowerCase()), n = '1234'.indexOf(e.key);
+    if (!e.key || e.repeat) return;
+    const k = e.key.length === 1 ? 'abcd'.indexOf(e.key.toLowerCase()) : -1, n = e.key.length === 1 ? '1234'.indexOf(e.key) : -1;
     const idx = k >= 0 ? k : n; if (idx >= 0 && !G.answered) answer(idx);
     else if ((e.key === 'Enter' || e.key === ' ') && G.answered && !$('btn-next').disabled && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); next(); }
   });

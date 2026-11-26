@@ -460,3 +460,17 @@ body{overflow-x:hidden}
 .logo-b{font-size:clamp(52px,min(19vw,calc(var(--vh)*.115)),96px);letter-spacing:0}
 .logo-c{font-size:clamp(60px,min(22vw,calc(var(--vh)*.13)),112px);letter-spacing:.06em}
 .title-tag{border-radius:16px;padding:4px 12px;line-height:1.45;font-weight:800}
+
+/* ===== 穩定度監察的修正（fx_stab 試改） ===== */
+@media (max-width:350px){.level-pts span{white-space:normal;text-wrap:balance}}
+@media (orientation:landscape) and (max-height:520px){
+  .fx-pop{left:auto;right:10px;top:16%;margin-left:0}
+}
+@media (orientation:landscape) and (max-height:520px){
+  #s-end .end-scene.win .end-sprite{--w:min(calc(var(--eh)*.85),34vw);--h:calc(var(--w)/1.417);margin-left:calc(var(--w)/-2)}
+}
+@media (max-height:600px) and (orientation:portrait){
+  .title-head{margin-top:6px}.title-mascot{min-height:60px}
+  .title-mascot .sprite{--h:clamp(60px,calc(var(--vh)*.14),216px)}
+  .howto{margin-bottom:8px;line-height:1.5}.title-panel{padding-top:10px}
+}

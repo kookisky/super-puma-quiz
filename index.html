@@ -3,18 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FBF4E6">
+<meta name="theme-color" content="#FFF7E8">
 <title>超級PUMA語錄王</title>
-<meta name="description" content="四個選項，只有一句是沈伯洋真的說過的。答到60分，救回奔奔抱抱！一局30題，初級、中級、高級各10題。">
+<meta name="description" content="四個選項，只有一句是沈伯洋真的說過的。集滿6顆氣球（60分），救回奔奔抱抱！一局30題，初級、中級、高級各10題。">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="zh_TW">
+<meta property="og:site_name" content="超級PUMA語錄王">
 <meta property="og:title" content="超級PUMA語錄王">
-<meta property="og:description" content="四個選項，只有一句是沈伯洋真的說過的。答到60分，救回奔奔抱抱！">
-<meta property="og:image" content="./img/social.jpg">
+<meta property="og:description" content="四個選項，只有一句是沈伯洋真的說過的。集滿6顆氣球，救回奔奔抱抱！">
+<meta property="og:url" content="https://kookisky.github.io/super-puma-quiz/">
+<meta property="og:image" content="https://kookisky.github.io/super-puma-quiz/img/social.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FBF4E6'/%3E%3Ctext x='32' y='48' text-anchor='middle' font-size='44' fill='%23F0637A'%3E♥%3C/text%3E%3C/svg%3E">
+<link rel="canonical" href="https://kookisky.github.io/super-puma-quiz/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FFF7E8'/%3E%3Ctext x='32' y='48' text-anchor='middle' font-size='44' fill='%23F0637A'%3E♥%3C/text%3E%3C/svg%3E">
 <link rel="preload" as="image" href="./img/run.webp">
-<link rel="stylesheet" href="./style.css?v=7">
+<link rel="stylesheet" href="./style.css?v=11">
 </head>
 <body>
 <div id="app" data-screen="boot">
@@ -29,8 +34,9 @@
   <!-- 標題 -->
   <section class="screen" id="s-title" hidden>
     <div class="title-bg" aria-hidden="true"></div>
+    <button class="icon-btn js-sound corner-sound" type="button" aria-label="聲音開關" aria-pressed="true">♪</button>
     <header class="title-head">
-            <h1 class="logo"><span class="logo-a">超級</span><span class="logo-b">PUMA</span><span class="logo-c">語錄王</span></h1>
+      <h1 class="logo"><span class="logo-a">超級</span><span class="logo-b">PUMA</span><span class="logo-c">語錄王</span></h1>
       <p class="title-tag">選出他說過的原話，集氣球救奔奔抱抱</p>
     </header>
     <div class="title-mascot"><div class="sprite sprite-run" role="img" aria-label="奔奔抱抱"></div></div>
@@ -38,7 +44,7 @@
       <ul class="howto">
         <li>四個選項，只有一句是沈伯洋真的說過的</li>
         <li>一局30題：初級、中級、高級各10題</li>
-        <li>答到<strong>60分</strong>，救回奔奔抱抱！</li>
+        <li>每10分一顆氣球，集滿<strong>6顆</strong>就救回奔奔抱抱！</li>
       </ul>
       <button id="btn-start" class="btn btn-primary btn-big" type="button">開始救援</button>
       <div class="title-links">
@@ -62,15 +68,15 @@
 
   <!-- 答題 -->
   <section class="screen" id="s-quiz" hidden>
-    <div class="hud">
+    <div class="hud" id="hud">
       <div class="hud-row">
         <span class="hud-q" id="hud-q">第1題／30</span>
         <span class="hud-lv" id="hud-lv">初級</span>
-        <span class="hud-time" id="hud-time" aria-label="解題時間">0:00</span>
-        <button class="icon-btn" id="btn-sound" type="button" aria-label="聲音開關" aria-pressed="true">♪</button>
+        <span class="hud-time" id="hud-time">0:00</span>
+        <button class="icon-btn js-sound" type="button" aria-label="聲音開關" aria-pressed="true">♪</button>
       </div>
-      <div class="gauge-labels"><span>救援進度　<b id="gauge-num">目前0分</b></span><span id="gauge-need">還差60分</span></div>
-      <div class="gauge" role="img" aria-label="救援進度">
+      <div class="gauge-labels"><span><b id="gauge-num">目前0分</b>　<span id="hud-balloons">氣球0／6</span></span><span id="gauge-need">還差60分救回他們</span></div>
+      <div class="gauge" id="gauge" role="img" aria-label="目前0分，救援線60分">
         <div class="gauge-fill" id="gauge-fill"></div>
         <div class="gauge-goal" aria-hidden="true"></div>
       </div>
@@ -78,23 +84,23 @@
     <div class="scene" id="scene" data-peril="water" aria-hidden="true">
       <div class="scene-bg"></div>
       <div class="hang" id="hang">
-        <div class="balloons" id="balloons"></div>
+        <div class="balloon-row"><div class="balloons" id="balloons"></div><span class="balloons-extra" id="balloons-extra"></span></div>
         <div class="rope"></div>
         <div class="sprite sprite-pat" id="hang-sprite"></div>
       </div>
       <div class="scene-fx" id="scene-fx"></div>
-      <div class="scene-hint" id="scene-hint" hidden>答對＋1顆氣球｜答錯破1顆</div>
+      <div class="scene-hint" id="scene-hint" hidden>每10分一顆氣球，集滿6顆就得救</div>
     </div>
     <main class="q-body" id="q-body">
       <p class="q-context" id="q-context"></p>
       <blockquote class="q-quote" id="q-quote"></blockquote>
       <div class="q-options" id="q-options" role="group" aria-label="選項"></div>
       <div class="q-reveal" id="q-reveal" hidden>
-        <p class="rv-verdict" id="rv-verdict"></p>
+        <p class="rv-verdict" id="rv-verdict" role="status"></p>
         <blockquote class="rv-quote" id="rv-quote"></blockquote>
         <p class="rv-source" id="rv-source"></p>
-        <div class="next-bar"><button id="btn-next" class="btn btn-primary btn-big" type="button">下一題 →</button></div>
       </div>
+      <div class="next-bar" id="next-bar" hidden><button id="btn-next" class="btn btn-primary btn-big" type="button">下一題 →</button></div>
     </main>
   </section>
 
@@ -114,6 +120,15 @@
         <div><b id="end-correct">0</b><span>答對題數</span></div>
       </div>
       <p class="end-levels" id="end-levels"></p>
+      <div class="end-actions">
+        <button id="btn-share" class="btn" type="button">分享救援成績</button>
+        <button id="btn-again" class="btn" type="button">再救一次</button>
+      </div>
+      <div class="share-box" id="share-box" hidden>
+        <p>長按下面這張圖就能儲存或分享：</p>
+        <img id="share-img" alt="我的救援成績圖" width="1080" height="1350">
+        <a id="share-dl" class="btn" download="puma-quiz.png" href="#">下載成績圖</a>
+      </div>
       <form id="name-form" class="name-form" autocomplete="off">
         <label for="name-input">留下ID，登上排行榜</label>
         <div class="name-row">
@@ -122,10 +137,6 @@
         </div>
         <p class="name-msg" id="name-msg" role="status"></p>
       </form>
-      <div class="end-actions">
-        <button id="btn-share" class="btn" type="button">分享救援成績</button>
-        <button id="btn-again" class="btn" type="button">再救一次</button>
-      </div>
       <div class="end-more">
         <button id="btn-review" class="btn" type="button">看我答的題</button>
         <button id="btn-board2" class="btn" type="button">排行榜</button>
@@ -135,8 +146,8 @@
 
   <!-- 排行榜 -->
   <section class="screen" id="s-board" hidden>
-    <header class="sub-head"><button class="icon-btn" id="btn-board-back" type="button" aria-label="返回">←</button><h2>排行榜</h2></header>
-    <p class="board-note" id="board-note">先比分數；同分比解題時間，快的在前。</p>
+    <header class="sub-head"><button class="icon-btn" id="btn-board-back" type="button" aria-label="返回">←</button><h2>排行榜</h2><button class="icon-btn js-sound sub-sound" type="button" aria-label="聲音開關" aria-pressed="true">♪</button></header>
+    <p class="board-note" id="board-note">先比分數；同分比解題時間，快的在前。每局題目隨機抽。</p>
     <ol class="board" id="board"></ol>
     <div class="board-foot"><button id="btn-board-play" class="btn btn-primary btn-big" type="button">開始挑戰</button></div>
   </section>
@@ -154,8 +165,9 @@
     <div class="about">
       <p>每一題的正確答案都是沈伯洋在公開專訪、記者會、辯論或造勢場合說過的原話，照逐字稿收錄；每題答完會附上場合、日期與原片連結。</p>
       <p>其他三個選項是出題者寫的，<strong>不是他說的</strong>。</p>
-      <p>計分：初級每題2分、中級每題3分、高級每題5分，滿分100分。排行榜先比分數，同分比解題時間。</p>
-      <p>本遊戲為民間自製，非競選總部出品。吉祥物「奔奔抱抱」圖像取自競選官網公開素材。</p>
+      <p id="about-pts"></p>
+      <p>排行榜會公開顯示你輸入的ID、分數與解題時間。為了防止洗榜，系統會暫時保存經過雜湊處理的連線來源識別值，兩天後清除；不收集其他個人資料。</p>
+      <p>本遊戲為民間自製，非競選總部出品。吉祥物「奔奔抱抱」圖像取自競選官網公開素材；場景底圖與配樂以生成式模型製作。</p>
       <p class="about-ver" id="about-ver"></p>
     </div>
   </section>
@@ -163,7 +175,7 @@
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 <noscript><p style="padding:24px;font:16px sans-serif">這個遊戲需要開啟JavaScript才能玩。</p></noscript>
-<script src="./config.js?v=2"></script>
-<script src="./app.js?v=6"></script>
+<script src="./config.js?v=4"></script>
+<script src="./app.js?v=11"></script>
 </body>
 </html>

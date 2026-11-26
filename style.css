@@ -369,3 +369,90 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 .level-pts{font-size:16px;line-height:24px}
 @media (max-width:380px){.answered .opt{padding:12px 10px;row-gap:8px}.answered .opt-tag{line-height:20px}}
 @media (orientation:landscape) and (max-height:520px){.toast{left:12px;top:12px;transform:none;max-width:calc(38vw - 24px)}}
+
+/* ===== 第五版（七路監察後的整合修改） ===== */
+:root{--fs:clamp(1rem,4.4vw,1.1875rem);--vh:100vh}
+@supports (height:100dvh){:root{--vh:100dvh}}
+body{overflow-x:hidden}
+#app{overflow:visible;overflow:clip}
+.screen{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+/* 聲音鍵 */
+.corner-sound{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(10px + var(--sat));z-index:3;width:44px;height:44px;border-width:1.5px;box-shadow:none}
+.sub-sound{margin-left:auto;border-width:1.5px}
+/* 標題：吉祥物隨可視高度縮放，小螢幕第一眼就看得到開始鈕 */
+.title-head{margin-top:min(4vh,32px)}
+.title-mascot{min-height:84px}
+.title-mascot .sprite{--h:clamp(84px,calc(var(--vh)*.2),216px);--w:calc(var(--h)*1.1875)}
+.title-tag{display:inline-block;background:rgba(255,247,232,.86);border-radius:999px;padding:1px 10px;font-size:.92em}
+.logo-b{font-size:clamp(56px,min(21vw,calc(var(--vh)*.13)),104px)}
+.logo-c{font-size:clamp(38px,min(14vw,calc(var(--vh)*.085)),68px)}
+.logo-a{font-size:clamp(28px,min(10vw,calc(var(--vh)*.06)),48px)}
+/* 答題：分數列固定在頂端，捲動時仍看得到救援進度 */
+#s-quiz{padding-left:0;padding-right:0}
+.hud{position:sticky;top:0;z-index:5;background:var(--cream);padding:calc(6px + var(--sat)) max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));border-bottom:1.5px solid #D9CDB8}
+#s-quiz{padding-top:0}
+.hud-q,.hud-lv,.hud-time{white-space:nowrap}
+.hud-time{font-size:.95em}
+.gauge-labels{font-size:12.5px;gap:8px}
+.gauge-labels>span{white-space:nowrap}
+#hud-balloons{color:var(--ink2)}
+.gauge-goal::before{display:none}
+.hud.bump .gauge-fill{filter:brightness(1.15)}
+.hud.bump #gauge-num{animation:bump .5s}
+@keyframes bump{40%{transform:scale(1.25)}}
+#gauge-num{display:inline-block}
+/* 氣球槽：每10分一顆，六格 */
+.balloon-row{display:flex;align-items:flex-end;justify-content:center;gap:2px}
+.balloons{gap:1px}
+.balloon.empty{background:transparent!important;border-style:dashed;border-color:rgba(48,40,31,.38)}
+.balloon.pop-in{animation:popin .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes popin{from{transform:scale(0)}}
+.balloon.popped{display:none}
+.balloons-extra{font-size:12px;font-weight:900;color:#246B45;-webkit-text-stroke:.5px #fff;min-width:0}
+.fx-pop{left:50%;top:30%;margin-left:calc(var(--sh)*.42)}
+.scene.saved::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 20% 30%,#FFD467 0 3px,transparent 4px),radial-gradient(circle at 70% 20%,#F0637A 0 3px,transparent 4px),radial-gradient(circle at 40% 60%,#5FB884 0 3px,transparent 4px),radial-gradient(circle at 85% 55%,#8FCDEB 0 3px,transparent 4px),radial-gradient(circle at 10% 70%,#F0637A 0 3px,transparent 4px),radial-gradient(circle at 55% 35%,#FFD467 0 3px,transparent 4px);animation:sparkle 1.2s ease-out 2}
+@keyframes sparkle{from{opacity:1;transform:translateY(-10px)}to{opacity:0;transform:translateY(24px)}}
+.scene-hint{font-size:12px}
+/* 選項標籤一律放到文字下方，不擠壓題目文字 */
+.answered .opt{flex-wrap:wrap;row-gap:6px}
+.answered .opt-text{flex:1 1 calc(100% - 40px)}
+.answered .opt-tag{margin-left:38px;line-height:20px;font-size:12px}
+.q-quote,.opt-text,.rv-quote{text-wrap:pretty}
+/* 揭曉與固定在底部的下一題 */
+.q-reveal{padding-bottom:8px}
+.rv-source{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:4px}
+.rv-source a{margin-left:auto;min-height:44px;display:inline-flex;align-items:center;padding:0 8px;font-size:14px}
+.q-body>.next-bar{position:sticky;bottom:0;z-index:4;margin:auto -14px calc(-14px - var(--sab));padding:10px 14px calc(10px + var(--sab));background:#FFF8E8;border-top:1px solid #DED5C3}
+.q-body{scroll-margin-top:120px}
+.q-reveal{scroll-margin-top:118px}
+/* 結局 */
+.end-scene.win .end-sprite{--h:calc(var(--eh)*.6);--w:calc(var(--eh)*.6*1.417);margin-left:calc(var(--eh)*-.425);bottom:8%}
+.end-stats b,.end-stats span{white-space:nowrap}
+.end-stats div:first-child{background:#FFEBA8}
+.share-box{order:4;background:var(--paper);border:1.5px solid var(--ink);border-radius:16px;padding:10px 12px;text-align:center}
+.share-box p{margin:0 0 8px;font-size:.88em;color:var(--ink2)}
+.share-box img{display:block;width:100%;max-width:300px;height:auto;margin:0 auto 8px;border:1.5px solid var(--ink);border-radius:10px;-webkit-touch-callout:default;user-select:auto}
+.share-box .btn{min-height:44px;font-size:.9em;text-decoration:none;color:var(--ink)}
+/* 排行榜：窄螢幕ID不被截短；名次顏色對比足夠 */
+.board li:nth-child(1) .rk{color:#8A6100}.board li:nth-child(2) .rk{color:#5F6A75}.board li:nth-child(3) .rk{color:#8A4B24}
+.board-empty{display:block!important;min-height:0!important;padding:22px 8px;text-align:center;color:var(--ink2);background:transparent!important;border:0!important}
+@media (max-width:400px){.board li{grid-template-columns:2.2em 1fr auto;grid-template-areas:"rk nm sc" "rk nm tm";row-gap:0}.board .rk{grid-area:rk}.board .nm{grid-area:nm;white-space:normal;word-break:break-all;line-height:1.3}.board .sc{grid-area:sc;text-align:right}.board .tm{grid-area:tm}}
+.rv-item .hd .res.ok{color:#246B45}
+.level-name{text-wrap:balance}
+/* 小螢幕 */
+@media (max-height:700px){.end-scene{--eh:min(30vh,200px)}}
+/* 手機橫拿 */
+@media (orientation:landscape) and (max-height:520px){
+  #s-quiz{height:var(--vh);padding-left:0}
+  #s-quiz .hud{position:static;border-bottom:0;border-right:2px solid var(--ink);padding:8px 10px 14px max(10px,env(safe-area-inset-left,0px))}
+  #s-quiz .scene{--sh:calc(var(--vh) - 104px)}
+  #s-quiz .q-body{padding-bottom:0}
+  .q-body>.next-bar{margin:auto -14px 0;padding-bottom:calc(10px + var(--sab))}
+  .q-reveal{padding-bottom:12px}
+  #s-end{grid-template-columns:38% minmax(0,1fr)}
+  #s-end .end-scene{--eh:var(--vh);min-height:var(--vh)}
+  #s-end .end-scene.lose{--eh:calc(var(--vh)*.7)}
+  .title-mascot .sprite{--h:clamp(80px,calc(var(--vh)*.34),150px)}
+  .title-tag{font-size:.8em}
+}
+.scene-hint{top:6px;bottom:auto;left:6px}

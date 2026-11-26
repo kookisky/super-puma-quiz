@@ -252,6 +252,7 @@ async function submitScore(name) {
   lastSubmitted = rec;
   if (!CFG.api) return {mode: 'local'};
   const r = await fetch(CFG.api + '/submit', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, v: CFG.version, picks: G.log.map(l => ({id: l.id, c: l.c, ms: l.ms}))})});
+  if (r.status === 400 || r.status === 429) { const e = new Error('rejected'); e.rejected = true; throw e; }
   if (!r.ok) throw new Error('排行榜暫時連不上');
   const d = await r.json(); boardCache = null; return {mode: 'online', rank: d.rank};
 }
@@ -362,7 +363,7 @@ function bind() {
     if (r.err) { msg.textContent = r.err; return; }
     $('btn-submit').disabled = true; msg.textContent = '送出中…'; store.set(LS.name, r.name);
     try { const res = await submitScore(r.name); msg.textContent = res.mode === 'online' ? `上榜了！目前第${res.rank}名` : '已記錄在這台裝置的排行榜'; $('name-input').blur(); }
-    catch (err) { msg.textContent = '排行榜暫時連不上，成績已先記在這台裝置'; }
+    catch (err) { msg.textContent = err && err.rejected ? '這次成績沒有登上線上排行榜（作答太快或送出太頻繁），已記在這台裝置' : '排行榜暫時連不上，成績已先記在這台裝置'; $('btn-submit').disabled = false; }
   });
   document.addEventListener('keydown', e => {
     if ($('app').dataset.screen !== 'quiz') return;

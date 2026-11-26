@@ -456,3 +456,7 @@ body{overflow-x:hidden}
   .title-tag{font-size:.8em}
 }
 .scene-hint{top:6px;bottom:auto;left:6px}
+/* 改名：PUMA學學霸（兩行標誌） */
+.logo-b{font-size:clamp(52px,min(19vw,calc(var(--vh)*.115)),96px);letter-spacing:0}
+.logo-c{font-size:clamp(60px,min(22vw,calc(var(--vh)*.13)),112px);letter-spacing:.06em}
+.title-tag{border-radius:16px;padding:4px 12px;line-height:1.45;font-weight:800}

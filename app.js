@@ -1,4 +1,4 @@
-/* 超級PUMA語錄王：遊戲本體（純靜態，無框架）第二版 */
+/* PUMA學學霸：遊戲本體（純靜態，無框架）第二版 */
 (() => {
 'use strict';
 const CFG = Object.assign({api: '', version: 'dev', site: location.origin + location.pathname, sfx: false}, window.PUMA_CONFIG || {});
@@ -291,12 +291,12 @@ function next() {
   if (G.i % PER_LEVEL === 0) return levelIntro(G.i / PER_LEVEL);
   showQuestion();
 }
-function rankTitle(s) { return s >= 100 ? '超級PUMA語錄王' : s >= 80 ? '語錄達人' : s >= GOAL ? '救援成功隊員' : s >= 40 ? '差一點救援隊' : '見習救援員'; }
+function rankTitle(s) { return s >= 100 ? 'PUMA學學霸' : s >= 80 ? 'PUMA學資優生' : s >= GOAL ? '救援成功隊員' : s >= 40 ? '差一點救援隊' : '見習救援員'; }
 function endGame() {
   const win = G.score >= GOAL, es = $('end-scene'), gap = GOAL - G.score;
   es.className = 'end-scene ' + (win ? 'win' : 'lose'); es.dataset.peril = 'fire';
   $('end-title').innerHTML = win ? '救援成功！<small>奔奔抱抱平安落地</small>' : `還差${gap}分<small>奔奔抱抱還掛在半空中</small>`;
-  $('end-sub').textContent = win ? (G.score === 100 ? '滿分！你就是超級PUMA語錄王。' : `你得到的稱號：${rankTitle(G.score)}`)
+  $('end-sub').textContent = win ? (G.score === 100 ? '滿分！你就是PUMA學學霸。' : `你得到的稱號：${rankTitle(G.score)}`)
     : (gap <= 10 ? '只差一點點，再救一次就上來了。' : gap <= 25 ? '氣球還撐著，多認識他幾句再來救。' : '先看看你答的題，下一局會更熟。');
   $('btn-share').classList.toggle('btn-primary', win); $('btn-again').classList.toggle('btn-primary', !win);
   $('end-score').textContent = G.score; $('end-time').textContent = fmtTime(G.ms); $('end-correct').textContent = G.correct + '／' + TOTAL;
@@ -408,7 +408,7 @@ async function makeShare(g) {
   const rr = (x, y, w, h, r) => { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); };
   const stroke = (t, x, y, size, fill) => { c.font = `900 ${size}px ${F}`; c.lineWidth = size * .14; c.strokeStyle = '#30281F'; c.strokeText(t, x, y); c.fillStyle = fill; c.fillText(t, x, y); };
   const card = (x, y, w, h) => { c.fillStyle = '#FFFCF5'; c.strokeStyle = '#30281F'; c.lineWidth = 6; rr(x, y, w, h, 32); c.fill(); c.stroke(); };
-  stroke('超級PUMA語錄王', W / 2, 150, 104, '#F0637A');
+  stroke('PUMA學學霸', W / 2, 156, 124, '#F0637A');
   c.fillStyle = '#30281F'; c.font = `900 60px ${F}`; c.fillText(win ? '我救回奔奔抱抱了！' : `還差${GOAL - g.score}分就救到奔奔抱抱`, W / 2, 258);
   c.font = `700 38px ${F}`; c.fillStyle = '#685F54'; c.fillText(`稱號：${rankTitle(g.score)}`, W / 2, 314);
   card(90, 350, 900, 240);
@@ -434,7 +434,7 @@ async function makeShare(g) {
 }
 function share() {
   const g = G; if (!g) return;
-  const text = `我在「超級PUMA語錄王」拿到${g.score}分（${fmtTime(g.ms)}），${g.score >= GOAL ? '救回奔奔抱抱了' : '差一點救到奔奔抱抱'}！ ${CFG.site}`;
+  const text = `我在「PUMA學學霸」拿到${g.score}分（${fmtTime(g.ms)}），${g.score >= GOAL ? '救回奔奔抱抱了' : '差一點救到奔奔抱抱'}！ ${CFG.site}`;
   const showBox = () => { $('share-box').hidden = false; $('share-box').scrollIntoView({block: 'center'}); };
   if (!g.shareBlob) { if (navigator.share) navigator.share({text}).catch(() => {}); else toast('成績圖還在準備，稍等一下再按一次'); return; }
   let file = null; try { file = new File([g.shareBlob], 'puma-quiz.png', {type: 'image/png'}); } catch (e) { /* 舊瀏覽器 */ }

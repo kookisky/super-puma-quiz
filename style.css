@@ -363,3 +363,9 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 }
 .end-actions .btn{grid-column:1/-1}
 .level-top .sprite{--w:190px;--h:160px}
+
+/* ===== 第四版補修（依視覺意見第三輪） ===== */
+.level-pts span{display:block;white-space:nowrap}
+.level-pts{font-size:16px;line-height:24px}
+@media (max-width:380px){.answered .opt{padding:12px 10px;row-gap:8px}.answered .opt-tag{line-height:20px}}
+@media (orientation:landscape) and (max-height:520px){.toast{left:12px;top:12px;transform:none;max-width:calc(38vw - 24px)}}

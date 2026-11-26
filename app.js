@@ -119,7 +119,7 @@ function levelIntro(li) {
   $('lv-no').textContent = `第${li + 1}關／3`;
   $('lv-name').textContent = `${lv.name}・${lv.title}`;
   $('lv-desc').textContent = lv.desc;
-  $('lv-pts').textContent = `10題，每題${lv.pts}分。目前${G.score}分，救援線${GOAL}分。`;
+  $('lv-pts').innerHTML = `<span>10題，每題${lv.pts}分。</span><span>目前${G.score}分，救援線${GOAL}分。</span>`;
   [...$('lv-dots').children].forEach((d, k) => d.classList.toggle('on', k <= li));
   show('level'); Sound.play(lv.music); if (li > 0) Sound.sfx('s05');
 }
@@ -193,7 +193,7 @@ function answer(k) {
   }
   const before = G.score - (right ? lv.pts : 0);
   renderBalloons(); renderGauge();
-  if (before < GOAL && G.score >= GOAL) { setTimeout(() => { Sound.sfx('s05'); toast('過救援線了！繼續衝高分'); }, 350); }
+  if (before < GOAL && G.score >= GOAL) { setTimeout(() => { Sound.sfx('s05'); toast('過救援線了！繼續衝高分', 2000); }, 350); }
   G.log.push({id: q.id, c: it.options[k].text, ok: right, ms: Math.round(used)});
   // 揭曉
   const v = $('rv-verdict'); v.textContent = right ? `答對了，+${lv.pts}分` : '答錯了，氣球破了一顆'; v.className = 'rv-verdict ' + (right ? 'ok' : 'no');

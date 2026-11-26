@@ -474,3 +474,5 @@ body{overflow-x:hidden}
   .title-mascot .sprite{--h:clamp(60px,calc(var(--vh)*.14),216px)}
   .howto{margin-bottom:8px;line-height:1.5}.title-panel{padding-top:10px}
 }
+/* codex第五輪：空的氣球槽更容易辨識 */
+.balloon.empty{border-width:1.5px;border-color:rgba(72,58,44,.62);background:rgba(255,255,255,.5)!important}

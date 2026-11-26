@@ -21,7 +21,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;',
 /* ---------- 聲音 ---------- */
 const Sound = (() => {
   let ctx = null, muted = !!store.get(LS.mute, false), unlocked = false, wantTrack = null;
-  const music = new Map(), buffers = new Map(), missing = new Set();
+  const buffers = new Map(), missing = new Set();
   const SFX = ['s01', 's02', 's03', 's04', 's05', 's06', 's07', 's08'];
   const synth = { // 檔案缺時的備援：簡單合成音
     s01: [[660, 0, .09], [880, .09, .09], [1320, .18, .16]], s02: [[330, 0, .14], [247, .14, .22]], s03: [[520, 0, .05]],
@@ -56,17 +56,34 @@ const Sound = (() => {
       o.connect(e); e.connect(ctx.destination); o.start(t + at); o.stop(t + at + dur + .02);
     });
   }
+  // 配樂用 Web Audio 的緩衝循環（接縫無空隙）；載入失敗或不支援時安靜略過
+  let cur = null, curName = null; const mbuf = new Map(), mload = new Map();
+  function loadMusic(name) {
+    if (mbuf.has(name)) return Promise.resolve(mbuf.get(name));
+    if (!mload.has(name)) mload.set(name, fetch(`./audio/${name}.mp3`).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+      .then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no))).then(buf => { mbuf.set(name, buf); return buf; }).catch(() => { mload.delete(name); return null; }));
+    return mload.get(name);
+  }
+  function stopMusic() {
+    if (!cur) return; const {src, gain} = cur; cur = null; curName = null;
+    try { const t = ctx.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(gain.gain.value, t); gain.gain.linearRampToValueAtTime(0, t + .35); src.stop(t + .4); } catch (e) { /* 已停 */ }
+  }
   function play(name) {
     wantTrack = name;
-    if (!unlocked) return;
-    music.forEach((a, k) => { if (k !== name) { a.pause(); } });
-    if (muted || !name) return;
-    let a = music.get(name);
-    if (!a) { a = new Audio(`./audio/${name}.mp3`); a.loop = true; a.preload = 'auto'; a.volume = .42; a.addEventListener('error', () => music.delete(name)); music.set(name, a); }
-    const p = a.play(); if (p && p.catch) p.catch(() => {});
+    if (!unlocked || !ensureCtx()) return;
+    if (muted || !name) { stopMusic(); return; }
+    if (curName === name) return;
+    stopMusic();
+    [...mbuf.keys()].forEach(k => { if (k !== name) { mbuf.delete(k); mload.delete(k); } }); // 手機記憶體有限，只留正在播的那一首
+    loadMusic(name).then(buf => {
+      if (!buf || wantTrack !== name || muted || curName === name || document.hidden) return;
+      const src = ctx.createBufferSource(), gain = ctx.createGain(); src.buffer = buf; src.loop = true;
+      gain.gain.setValueAtTime(0, ctx.currentTime); gain.gain.linearRampToValueAtTime(.34, ctx.currentTime + .5);
+      src.connect(gain); gain.connect(ctx.destination); src.start(); cur = {src, gain}; curName = name;
+    });
   }
-  function setMuted(m) { muted = m; store.set(LS.mute, m); if (m) music.forEach(a => a.pause()); else play(wantTrack); }
-  document.addEventListener('visibilitychange', () => { if (document.hidden) music.forEach(a => a.pause()); else if (!muted) play(wantTrack); });
+  function setMuted(m) { muted = m; store.set(LS.mute, m); if (m) stopMusic(); else play(wantTrack); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stopMusic(); if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {}); } else { if (ctx) ctx.resume().catch(() => {}); if (!muted) play(wantTrack); } });
   return {unlock, sfx, play, setMuted, get muted() { return muted; }};
 })();
 
